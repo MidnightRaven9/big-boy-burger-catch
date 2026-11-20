@@ -7,6 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:standalone": "vite build --config vite.config.standalone.ts && node scripts/fix-standalone-html.mjs",
+    "build:apk": "npm run build:standalone && node scripts/sync-android-assets.mjs && cd android && ./gradlew assembleRelease",
+    "build:apk:debug": "npm run build:standalone && node scripts/sync-android-assets.mjs && cd android && ./gradlew assembleDebug",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

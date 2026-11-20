@@ -1,0 +1,44 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.midnightraven9.burgercatch'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.midnightraven9.burgercatch'
+        minSdkVersion 23
+        targetSdkVersion 36
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    // Self-signed key for sideload builds. Keep this key safe: updates must be
+    // signed with the same key to upgrade an installed APK without uninstalling.
+    signingConfigs {
+        release {
+            storeFile file('burgercatch-release.keystore')
+            storePassword 'burgercatch2026'
+            keyAlias 'burgercatch'
+            keyPassword 'burgercatch2026'
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.release
+        }
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    aaptOptions {
+        ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+}

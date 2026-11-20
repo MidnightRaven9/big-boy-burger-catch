@@ -2,6 +2,33 @@
 
 A lightweight, nostalgic Bismarck Big Boy arcade game built with React, TypeScript, Vite and HTML5 Canvas. Catch original cheeseburger artwork on Big Boy's original white plate, dodge the original gravy splats, and beat your local high score.
 
+## Download and play
+
+Pick whichever way you want to play — all three versions are the same game using the original artwork:
+
+| Version | Link | Notes |
+| --- | --- | --- |
+| Play in a browser | [Live game (GitHub Pages)](https://midnightraven9.github.io/big-boy-burger-catch/) | No install. Works on phone and desktop. |
+| Web ZIP (offline) | [big-boy-burger-catch-web.zip](https://github.com/MidnightRaven9/big-boy-burger-catch/releases/download/v1.0.0/big-boy-burger-catch-web.zip) | Unzip and open `index.html`, or serve the folder locally. Fully offline. |
+| Android APK | [BigBoyBurgerCatch-v1.0.0.apk](https://github.com/MidnightRaven9/big-boy-burger-catch/releases/download/v1.0.0/BigBoyBurgerCatch-v1.0.0.apk) | Sideload on Android 6.0+ (API 23). Fully offline. |
+
+### Web ZIP instructions
+
+1. Download and unzip `big-boy-burger-catch-web.zip`.
+2. Open `index.html` in a modern browser — the game loads straight from the file with no server needed.
+3. Or, for a local server: `cd` into the unzipped folder and run `python3 -m http.server 8000`, then open `http://127.0.0.1:8000/`.
+
+All code and the three original PNGs are bundled. The high score is saved in that browser's local storage.
+
+### Android APK instructions
+
+1. Download `BigBoyBurgerCatch-v1.0.0.apk` onto your Android phone (API 23 / Android 6.0 or newer).
+2. Enable **Settings → Security → Install unknown apps** for the app you use to open the file (Files, Chrome, etc.).
+3. Open the APK and tap **Install**.
+4. Launch **Big Boy Burger Catch** from your app drawer. No internet connection is required to play.
+
+The APK is **release-signed** with the project key in `android/app/burgercatch-release.keystore`. Keep that key if you want to install future updates over this one without uninstalling first. It is signed for sideloading only; it is not submitted to the Play Store.
+
 ## Original artwork (required)
 
 The game uses **only the three original PNG images** supplied for this project:
@@ -37,11 +64,15 @@ npm run dev
 Open the URL Vite prints (normally `http://127.0.0.1:5173/big-boy-burger-catch/`).
 
 ```bash
-npm test              # gameplay logic unit tests
-npm run verify:assets # validate the three original PNGs
-npm run build         # production build into dist/
-npm run preview       # serve the production build locally
+npm test                # gameplay logic unit tests
+npm run verify:assets   # validate the three original PNGs
+npm run build           # production build into dist/ (GitHub Pages)
+npm run preview         # serve the production build locally
+npm run build:standalone # offline build into dist-standalone/ (relative paths, classic script)
+npm run build:apk       # offline build + Gradle assembleRelease APK
 ```
+
+`build:standalone` creates a self-contained folder that opens from `file://` and can be zipped as the offline web version. `build:apk` copies that build into the Android WebView app's assets and produces `android/app/build/outputs/apk/release/app-release.apk`. It needs the Android SDK (`ANDROID_HOME` or `android/local.properties` with `sdk.dir`) and Java 17+. Use `npm run build:apk:debug` for a debug variant.
 
 Add `?debug=1` to the URL to expose `window.__BBBC__` with helpers (`start`, `setPlayerX`, `spawn`, `getState`, `getPlate`) for automated testing.
 
@@ -117,6 +148,8 @@ Before publishing, the following were checked against a real headless Chromium r
 - Game Over final score, empty hearts, Play Again restart, pause/resume, mute, high score and mute persistence after reload.
 - No page scrolling and no console/page errors.
 - `npm test` (8 logic tests) and `npm run build` both pass.
+- The same 25 checks pass against the live GitHub Pages URL **and** the offline standalone build opened from `file://`.
+- The release APK was verified with `aapt dump badging` (package `com.midnightraven9.burgercatch`, label `Big Boy Burger Catch`, minSdk 23, targetSdk 36, non-debuggable), `aapt list` (index + all three original PNGs bundled under `assets/public/`), and `apksigner verify` (release signature valid).
 
 ## Project structure
 
@@ -128,9 +161,17 @@ big-boy-burger-catch/
 ├── src/App.tsx
 ├── src/main.tsx
 ├── src/styles.css
+├── android/                       # offline WebView APK project
+│   └── app/
+│       ├── build.gradle           # release signing config
+│       ├── burgercatch-release.keystore
+│       └── src/main/{java,res,assets/public}
+├── release/                       # downloadable artifacts
+│   ├── BigBoyBurgerCatch-v1.0.0.apk
+│   └── big-boy-burger-catch-web.zip
+├── scripts/{verify-assets,fix-standalone-html,sync-android-assets}.mjs
 ├── .github/workflows/deploy.yml
-├── index.html
-├── package.json
-├── README.md
-└── vite.config.ts
+├── vite.config.ts                 # GitHub Pages build
+├── vite.config.standalone.ts      # offline/file:// build
+└── vitest.config.ts
 ```

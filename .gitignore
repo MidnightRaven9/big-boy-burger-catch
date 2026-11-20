@@ -5,3 +5,9 @@ dist/
 .vite/
 coverage/
 *.tsbuildinfo
+dist-standalone/
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/app/src/main/assets/public/
