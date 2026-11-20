@@ -1,6 +1,27 @@
+import type {
+  MascotExpression,
+  MascotLayerName,
+} from './mascotLayers.generated';
+
+export type { MascotExpression, MascotLayerName } from './mascotLayers.generated';
+
 export type Phase = 'start' | 'playing' | 'paused' | 'gameover';
 export type Direction = 'left' | 'right';
+export type Facing = Direction;
 export type FallKind = 'burger' | 'gravy';
+
+/**
+ * The renderer is driven by these explicit sprite states. Walking is built
+ * from independently transformed leg/arm/head layers, not by wobbling one
+ * flattened mascot image.
+ */
+export type MascotAnimation =
+  | 'idle'
+  | 'walk-left'
+  | 'walk-right'
+  | 'catch'
+  | 'hit'
+  | 'game-over';
 
 export type Rng = () => number;
 
@@ -59,11 +80,19 @@ export interface GameState {
   lives: number;
   highScore: number;
   elapsed: number;
+  level: number;
+  speedUpTimer: number;
   playerX: number;
   playerY: number;
   playerW: number;
   playerH: number;
   playerVX: number;
+  facing: Facing;
+  anim: MascotAnimation;
+  animTime: number;
+  expression: MascotExpression;
+  blinkTimer: number;
+  blinkActive: number;
   plate: PlateAbsolute;
   falls: Falling[];
   particles: Particle[];
@@ -84,14 +113,19 @@ export interface UiSnapshot {
   score: number;
   lives: number;
   highScore: number;
+  level: number;
   muted: boolean;
   catches: number;
 }
 
 export interface GameImages {
+  /** Original flat artwork, kept for plate detection and reference. */
   mascot: HTMLImageElement;
   burger: HTMLImageElement;
   gravy: HTMLImageElement;
+  /** Independently animatable crops of the ORIGINAL mascot artwork. */
+  layers: Record<MascotLayerName, HTMLImageElement>;
+  expressions: Record<MascotExpression, HTMLImageElement>;
 }
 
 export interface EngineCallbacks {

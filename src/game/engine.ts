@@ -1,5 +1,13 @@
+import {
+  advanceAnimation,
+  mascotPoseFor,
+  platePosition,
+  resetAnimationState,
+} from './animation';
 import { mascotDrawSize } from './assets';
 import {
+  CATCH_ANIM_SECONDS,
+  HIT_ANIM_SECONDS,
   INVULN_SECONDS,
   LOGICAL_H,
   LOGICAL_W,
@@ -9,6 +17,7 @@ import {
   PLAYER_BOTTOM_MARGIN,
   PLAYER_DECEL,
   POINTS_PER_BURGER,
+  SPEED_UP_SECONDS,
   STARTING_LIVES,
 } from './config';
 import {
@@ -28,8 +37,11 @@ import { renderGame } from './render';
 import type {
   EngineCallbacks,
   FallKind,
+  Facing,
   GameImages,
   GameState,
+  MascotAnimation,
+  MascotExpression,
   PlateAbsolute,
   PlateRelative,
   Rng,
@@ -83,11 +95,19 @@ export class GameEngine {
       lives: STARTING_LIVES,
       highScore: options.highScore ?? 0,
       elapsed: 0,
+      level: 1,
+      speedUpTimer: 0,
       playerX,
       playerY,
       playerW: size.width,
       playerH: size.height,
       playerVX: 0,
+      facing: 'right',
+      anim: 'idle',
+      animTime: 0,
+      expression: 'normal',
+      blinkTimer: 3,
+      blinkActive: 0,
       plate,
       falls: [],
       particles: [],
@@ -102,6 +122,8 @@ export class GameEngine {
       catches: 0,
       nextId: 1,
     };
+    resetAnimationState(this.state);
+    this.updatePlate();
     this.lastSnapshot = this.getSnapshot();
   }
 
@@ -110,6 +132,8 @@ export class GameEngine {
     s.score = 0;
     s.lives = STARTING_LIVES;
     s.elapsed = 0;
+    s.level = 1;
+    s.speedUpTimer = 0;
     s.playerX = LOGICAL_W / 2;
     s.playerVX = 0;
     s.falls = [];
@@ -125,6 +149,7 @@ export class GameEngine {
     s.nextId = 1;
     this.input.left = false;
     this.input.right = false;
+    resetAnimationState(s);
     this.updatePlate();
     s.phase = 'playing';
     this.emit(true);
@@ -150,6 +175,9 @@ export class GameEngine {
   }
 
   setDirection(direction: 'left' | 'right', active: boolean): void {
+    // The most recently pressed direction wins, so a flip is immediate even
+    // if the previous control has not been released yet.
+    if (active) this.input[direction === 'left' ? 'right' : 'left'] = false;
     this.input[direction] = active;
   }
 
@@ -170,7 +198,7 @@ export class GameEngine {
     s.elapsed += step;
 
     // --- player movement (smooth, but responsive) ---
-    const direction = directionValue(this.input.left, this.input.right);
+    const direction = directionValue(this.input.left, this.input.right) as -1 | 0 | 1;
     const target = direction * MOVE_SPEED;
     const accel = direction === 0 ? PLAYER_DECEL : PLAYER_ACCEL;
     s.playerVX = approach(s.playerVX, target, accel * step);
@@ -179,15 +207,30 @@ export class GameEngine {
       s.playerW / 2 + 10,
       LOGICAL_W - s.playerW / 2 - 10,
     );
+
+    // --- articulated animation + mirrored plate hitbox ---
+    advanceAnimation(s, step, direction);
     this.updatePlate();
 
-    // --- spawning and difficulty ---
+    // --- difficulty / SPEED UP! ---
     const difficulty = difficultyAt(s.elapsed);
+    if (difficulty.level > s.level) {
+      s.level = difficulty.level;
+      s.speedUpTimer = SPEED_UP_SECONDS;
+    }
+
+    // --- spawning: one item per event, with caps and spacing ---
     s.spawnTimer -= step;
     if (s.spawnTimer <= 0) {
-      const fall = spawnFall(s.nextId++, difficulty, this.rng, s.falls.length);
-      if (fall) s.falls.push(fall);
-      s.spawnTimer = difficulty.spawnEvery * (0.82 + this.rng() * 0.36);
+      const fall = spawnFall(s.nextId, difficulty, this.rng, s.falls);
+      if (fall) {
+        s.falls.push(fall);
+        s.nextId += 1;
+        s.spawnTimer = difficulty.spawnEvery;
+      } else {
+        // At a limit: do not spawn, and retry shortly.
+        s.spawnTimer = 0.12;
+      }
     }
 
     // --- falling objects, collisions ---
@@ -232,8 +275,9 @@ export class GameEngine {
     s.invuln = Math.max(0, s.invuln - step);
     s.shake = Math.max(0, s.shake - step * 26);
     s.flash = Math.max(0, s.flash - step * 2.4);
-    s.catchPulse = Math.max(0, s.catchPulse - step * 3.1);
-    s.hitPulse = Math.max(0, s.hitPulse - step * 2.2);
+    s.catchPulse = Math.max(0, s.catchPulse - step / CATCH_ANIM_SECONDS);
+    s.hitPulse = Math.max(0, s.hitPulse - step / HIT_ANIM_SECONDS);
+    s.speedUpTimer = Math.max(0, s.speedUpTimer - step);
 
     for (let i = s.particles.length - 1; i >= 0; i -= 1) {
       const p = s.particles[i];
@@ -268,6 +312,7 @@ export class GameEngine {
       score: s.score,
       lives: s.lives,
       highScore: s.highScore,
+      level: s.level,
       muted: s.muted,
       catches: s.catches,
     };
@@ -278,6 +323,53 @@ export class GameEngine {
     this.state.playerX = clamp(x, this.state.playerW / 2, LOGICAL_W - this.state.playerW / 2);
     this.state.playerVX = 0;
     this.updatePlate();
+  }
+
+  /** Debug/testing helper: force a horizontal velocity for animation checks. */
+  debugSetPlayerVelocity(vx: number): void {
+    this.state.playerVX = vx;
+    advanceAnimation(this.state, 0, 0);
+    this.updatePlate();
+  }
+
+  /** Debug/testing helper: jump to a difficulty tier without waiting. */
+  debugSetElapsed(seconds: number): void {
+    this.state.elapsed = Math.max(0, seconds);
+    this.state.level = difficultyAt(this.state.elapsed).level;
+    this.emit(true);
+  }
+
+  /** Debug/testing helper: hold a pulse to inspect an expression. */
+  debugSetPulse(kind: 'catch' | 'hit', value: number): void {
+    const amount = clamp(value, 0, 1);
+    this.state.catchPulse = kind === 'catch' ? amount : 0;
+    this.state.hitPulse = kind === 'hit' ? amount : 0;
+    advanceAnimation(this.state, 0, 0);
+    this.updatePlate();
+  }
+
+  /** Debug/testing helper: force an explicit animation for rendering checks. */
+  debugSetAnimation(anim: MascotAnimation, expression?: MascotExpression): void {
+    this.state.anim = anim;
+    this.state.animTime = 0;
+    if (expression) this.state.expression = expression;
+    this.updatePlate();
+  }
+
+  /** Debug/testing helper: expose the exact pose driving the canvas. */
+  debugAnimation(): {
+    anim: MascotAnimation;
+    expression: MascotExpression;
+    facing: Facing;
+    pose: ReturnType<typeof mascotPoseFor>;
+  } {
+    const s = this.state;
+    return {
+      anim: s.anim,
+      expression: s.expression,
+      facing: s.facing,
+      pose: mascotPoseFor(s),
+    };
   }
 
   /** Debug/testing helper: spawn a specific object at an exact position. */
@@ -292,10 +384,7 @@ export class GameEngine {
   }
 
   private updatePlate(): void {
-    const s = this.state;
-    s.plate.x = s.playerX - s.playerW / 2 + this.plateRel.x * s.playerW;
-    s.plate.y = s.playerY + this.plateRel.y * s.playerH;
-    s.plate.radius = this.plateRel.radiusX * s.playerW;
+    this.state.plate = platePosition(this.state, this.plateRel);
   }
 
   private catchBurger(fall: { x: number; y: number }): void {
@@ -337,6 +426,9 @@ export class GameEngine {
       s.phase = 'gameover';
       s.invuln = 0;
       s.falls = [];
+      s.anim = 'game-over';
+      s.animTime = 0;
+      s.expression = 'sad';
       s.highScore = Math.max(s.highScore, s.score);
       this.clearDirections();
       this.callbacks.onGameOver(s.score, s.highScore);
@@ -372,6 +464,7 @@ export class GameEngine {
       next.score !== prev.score ||
       next.lives !== prev.lives ||
       next.highScore !== prev.highScore ||
+      next.level !== prev.level ||
       next.muted !== prev.muted ||
       next.catches !== prev.catches
     ) {

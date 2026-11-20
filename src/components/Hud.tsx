@@ -5,13 +5,24 @@ interface HudProps {
   score: number;
   highScore: number;
   lives: number;
+  level: number;
   muted: boolean;
   onPause: () => void;
   onResume: () => void;
   onMute: () => void;
 }
 
-export function Hud({ phase, score, highScore, lives, muted, onPause, onResume, onMute }: HudProps) {
+export function Hud({
+  phase,
+  score,
+  highScore,
+  lives,
+  level,
+  muted,
+  onPause,
+  onResume,
+  onMute,
+}: HudProps) {
   const isPlaying = phase === 'playing';
   const isPaused = phase === 'paused';
 
@@ -21,6 +32,10 @@ export function Hud({ phase, score, highScore, lives, muted, onPause, onResume, 
         <div className="hud__stat">
           <span className="hud__label">Score</span>
           <strong className="hud__value" data-testid="score">{score}</strong>
+        </div>
+        <div className="hud__stat hud__stat--level">
+          <span className="hud__label">Level</span>
+          <strong className="hud__value hud__value--level" data-testid="level">{level}</strong>
         </div>
         <div className="hud__stat hud__stat--center">
           <span className="hud__label">Best</span>

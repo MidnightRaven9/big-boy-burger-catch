@@ -1,8 +1,13 @@
 import {
   BURGER_RADIUS,
+  DIFFICULTY_STAGES,
+  GRAVY_CHANCE,
   GRAVY_RADIUS,
   LOGICAL_W,
+  MAX_BURGERS,
   MAX_FALLS,
+  SPAWN_ATTEMPTS,
+  SPAWN_MIN_GAP,
   STARTING_LIVES,
 } from './config';
 import type { FallKind, Falling, PlateAbsolute, Rng } from './types';
@@ -14,14 +19,17 @@ export interface Difficulty {
   gravyChance: number;
 }
 
-/** Gentle ramp: a new level every 18 seconds, capped so the game stays fair. */
+/** Exact six-tier table; elapsed is in seconds. */
 export function difficultyAt(elapsed: number): Difficulty {
-  const level = Math.max(0, Math.floor(elapsed / 18));
+  const safe = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
+  const stage =
+    DIFFICULTY_STAGES.find((entry) => safe >= entry.start && safe < entry.end) ??
+    DIFFICULTY_STAGES[DIFFICULTY_STAGES.length - 1];
   return {
-    level,
-    spawnEvery: Math.max(0.36, 0.98 - level * 0.075),
-    fallSpeed: Math.min(560, 205 + level * 32),
-    gravyChance: Math.min(0.44, 0.18 + level * 0.026),
+    level: stage.level,
+    spawnEvery: stage.spawnEvery,
+    fallSpeed: stage.fallSpeed,
+    gravyChance: GRAVY_CHANCE,
   };
 }
 
@@ -47,20 +55,46 @@ export function createFall(
   };
 }
 
-/** Pick a kind and horizontal position, keeping falling art inside the playfield. */
+/**
+ * One object per spawn event. The function refuses to spawn at the global cap,
+ * when two burgers are already falling, or when no non-overlapping horizontal
+ * slot can be found at the top of the playfield.
+ */
 export function spawnFall(
   id: number,
   difficulty: Difficulty,
   rng: Rng = Math.random,
-  fallsCount = 0,
+  falls: Falling[] = [],
 ): Falling | null {
-  if (fallsCount >= MAX_FALLS) return null;
-  const kind: FallKind = rng() < difficulty.gravyChance ? 'gravy' : 'burger';
+  if (falls.length >= MAX_FALLS) return null;
+
+  const burgerCount = falls.reduce((count, fall) => count + (fall.kind === 'burger' ? 1 : 0), 0);
+  let kind: FallKind = rng() < difficulty.gravyChance ? 'gravy' : 'burger';
+  if (kind === 'burger' && burgerCount >= MAX_BURGERS) kind = 'gravy';
+
   const radius = kind === 'burger' ? BURGER_RADIUS : GRAVY_RADIUS;
   const margin = radius + 28;
-  const x = margin + rng() * Math.max(1, LOGICAL_W - margin * 2);
-  const speed = difficulty.fallSpeed * (0.9 + rng() * 0.25);
-  return createFall(id, kind, x, speed, rng);
+  const usableWidth = Math.max(1, LOGICAL_W - margin * 2);
+  const spawnY = -radius - 18;
+
+  for (let attempt = 0; attempt < SPAWN_ATTEMPTS; attempt += 1) {
+    const x = margin + rng() * usableWidth;
+    const candidate = createFall(id, kind, x, difficulty.fallSpeed, rng);
+    candidate.y = spawnY;
+    if (hasSpawnSpacing(candidate, falls)) return candidate;
+  }
+  return null;
+}
+
+/** Keep newly spawned art clear of anything already near the top. */
+export function hasSpawnSpacing(candidate: Falling, falls: Falling[]): boolean {
+  for (const other of falls) {
+    const minDistance = candidate.radius + other.radius + SPAWN_MIN_GAP;
+    const dx = candidate.x - other.x;
+    const dy = candidate.y - other.y;
+    if (dx * dx + dy * dy < minDistance * minDistance) return false;
+  }
+  return true;
 }
 
 export function circlesOverlap(
@@ -73,12 +107,18 @@ export function circlesOverlap(
   return dx * dx + dy * dy <= r * r;
 }
 
-/** A burger is caught only when it reaches the white plate on the mascot. */
+/**
+ * Burgers score only when they visibly touch the actual white plate. The
+ * contact area is a shallow ellipse across the plate, so a burger hitting the
+ * head, torso, or empty air never scores.
+ */
 export function burgerOnPlate(fall: Falling, plate: PlateAbsolute): boolean {
-  return circlesOverlap(
-    { x: fall.x, y: fall.y, radius: fall.radius * 0.62 },
-    { x: plate.x, y: plate.y, radius: plate.radius },
-  );
+  const dx = Math.abs(fall.x - plate.x);
+  const dy = fall.y - plate.y;
+  const contactX = plate.radius + fall.radius * 0.28;
+  const contactY = Math.max(10, plate.radius * 0.34) + fall.radius * 0.5;
+  if (dx > contactX || dy < -contactY || dy > contactY) return false;
+  return (dx / contactX) ** 2 + (dy / contactY) ** 2 <= 1;
 }
 
 /** Gravy hits the mascot's body; a small inset keeps near-misses fair. */

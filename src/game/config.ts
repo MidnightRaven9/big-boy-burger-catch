@@ -1,3 +1,4 @@
+import { MASCOT_PLATE } from './mascotLayers.generated';
 import type { PlateRelative } from './types';
 
 /** Fixed portrait playfield; the canvas is scaled to fit any screen. */
@@ -15,20 +16,49 @@ export const PLAYER_DECEL = 3200;
 
 export const BURGER_RADIUS = 42;
 export const GRAVY_RADIUS = 48;
-export const INVULN_SECONDS = 1.15;
 
-export const MAX_FALLS = 14;
+/** Damage protection is exactly 0.8 seconds per gravy hit. */
+export const INVULN_SECONDS = 0.8;
+
+/** Reaction timing for the articulated expressions. */
+export const CATCH_ANIM_SECONDS = 0.5;
+export const HIT_ANIM_SECONDS = 0.7;
+export const SPEED_UP_SECONDS = 1.35;
+
+/** A blink every few seconds; timing pauses with the game. */
+export const BLINK_MIN_GAP = 2.6;
+export const BLINK_MAX_GAP = 5.2;
+export const BLINK_SECONDS = 0.12;
+
+/** Spawn rules requested for the upgraded difficulty curve. */
+export const MAX_FALLS = 3;
+export const MAX_BURGERS = 2;
+export const GRAVY_CHANCE = 0.25;
+export const SPAWN_MIN_GAP = 46;
+export const SPAWN_ATTEMPTS = 18;
 
 /**
- * Used only if automated white-plate detection cannot find the plate in the
- * original mascot artwork. Values are fractions of the mascot image.
+ * Exact progressive difficulty table. `elapsed` is measured in seconds and
+ * only advances while the game is playing. The final tier is the speed cap.
+ */
+export const DIFFICULTY_STAGES = [
+  { level: 1, start: 0, end: 15, fallSpeed: 140, spawnEvery: 1.4 },
+  { level: 2, start: 15, end: 30, fallSpeed: 175, spawnEvery: 1.3 },
+  { level: 3, start: 30, end: 45, fallSpeed: 215, spawnEvery: 1.2 },
+  { level: 4, start: 45, end: 60, fallSpeed: 260, spawnEvery: 1.1 },
+  { level: 5, start: 60, end: 90, fallSpeed: 310, spawnEvery: 1.0 },
+  { level: 6, start: 90, end: Number.POSITIVE_INFINITY, fallSpeed: 360, spawnEvery: 0.9 },
+] as const;
+
+export type DifficultyStage = (typeof DIFFICULTY_STAGES)[number];
+export const HIGHEST_LEVEL = DIFFICULTY_STAGES.length;
+
+/**
+ * Fallback only if plate detection fails. These values are measured directly
+ * from the original mascot artwork and match the generated layer metadata.
  */
 export const PLATE_FALLBACK: PlateRelative = {
-  // Measured from the supplied original mascot PNG: the white plate is held
-  // out to the right, around 77% across and 27% down the artwork.
-  x: 0.772,
-  y: 0.268,
-  radiusX: 0.156,
+  ...MASCOT_PLATE,
   detected: false,
 };
 

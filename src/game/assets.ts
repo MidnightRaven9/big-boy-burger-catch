@@ -1,14 +1,32 @@
 import { PLAYER_DRAW_HEIGHT, PLATE_FALLBACK, PLATE_OVERRIDE } from './config';
-import type { GameImages, PlateRelative } from './types';
+import {
+  MASCOT_EXPRESSION_HEADS,
+  MASCOT_LAYER_RECTS,
+} from './mascotLayers.generated';
+import type {
+  GameImages,
+  MascotExpression,
+  MascotLayerName,
+  PlateRelative,
+} from './types';
 
 const base = import.meta.env.BASE_URL.endsWith('/')
   ? import.meta.env.BASE_URL
   : `${import.meta.env.BASE_URL}/`;
 
+const layerNames = Object.keys(MASCOT_LAYER_RECTS) as MascotLayerName[];
+const expressionNames = Object.keys(MASCOT_EXPRESSION_HEADS) as MascotExpression[];
+
 export const ASSET_URLS = {
   mascot: `${base}assets/mascot.png`,
   burger: `${base}assets/burger.png`,
   gravy: `${base}assets/gravy.png`,
+  layers: Object.fromEntries(
+    layerNames.map((name) => [name, `${base}assets/mascot/${name}.png`]),
+  ) as Record<MascotLayerName, string>,
+  expressions: Object.fromEntries(
+    expressionNames.map((name) => [name, `${base}assets/${MASCOT_EXPRESSION_HEADS[name]}`]),
+  ) as Record<MascotExpression, string>,
 } as const;
 
 function loadImage(url: string): Promise<HTMLImageElement> {
@@ -22,12 +40,27 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 }
 
 export async function loadImages(): Promise<GameImages> {
-  const [mascot, burger, gravy] = await Promise.all([
+  const [mascot, burger, gravy, ...layerImages] = await Promise.all([
     loadImage(ASSET_URLS.mascot),
     loadImage(ASSET_URLS.burger),
     loadImage(ASSET_URLS.gravy),
+    ...layerNames.map((name) => loadImage(ASSET_URLS.layers[name])),
+    ...expressionNames.map((name) => loadImage(ASSET_URLS.expressions[name])),
   ]);
-  return { mascot, burger, gravy };
+
+  const layers = {} as Record<MascotLayerName, HTMLImageElement>;
+  layerNames.forEach((name, index) => {
+    const image = layerImages[index];
+    if (image) layers[name] = image;
+  });
+
+  const expressions = {} as Record<MascotExpression, HTMLImageElement>;
+  expressionNames.forEach((name, index) => {
+    const image = layerImages[layerNames.length + index];
+    if (image) expressions[name] = image;
+  });
+
+  return { mascot, burger, gravy, layers, expressions };
 }
 
 interface Sample {

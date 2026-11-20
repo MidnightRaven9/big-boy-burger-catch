@@ -1,5 +1,17 @@
-import { COLORS, LOGICAL_H, LOGICAL_W } from './config';
-import type { GameImages, GameState } from './types';
+import { mascotPoseFor } from './animation';
+import {
+  COLORS,
+  LOGICAL_H,
+  LOGICAL_W,
+  SPEED_UP_SECONDS,
+} from './config';
+import { MASCOT_LAYER_RECTS, MASCOT_PIVOTS } from './mascotLayers.generated';
+import type {
+  GameImages,
+  GameState,
+  MascotExpression,
+  MascotLayerName,
+} from './types';
 
 export function renderGame(
   ctx: CanvasRenderingContext2D,
@@ -39,21 +51,27 @@ export function renderGame(
   ctx.arc(p.x, p.y, glowRadius, 0, Math.PI * 2);
   ctx.fill();
 
-  // The mascot artwork itself contains the original white plate; no substitute plate is drawn.
-  const blinking = state.invuln > 0 && Math.floor(state.invuln * 14) % 2 === 0;
-  ctx.save();
-  ctx.globalAlpha = blinking ? 0.42 : 1;
-  ctx.drawImage(images.mascot, state.playerX - state.playerW / 2, state.playerY, state.playerW, state.playerH);
-  ctx.restore();
+  drawArticulatedMascot(ctx, state, images);
 
   if (state.catchPulse > 0) {
+    const progress = 1 - state.catchPulse;
     ctx.save();
     ctx.globalAlpha = state.catchPulse;
     ctx.strokeStyle = COLORS.yellow;
     ctx.lineWidth = 8;
     ctx.beginPath();
-    ctx.arc(p.x, p.y, p.radius * (1 + (1 - state.catchPulse) * 1.25), 0, Math.PI * 2);
+    ctx.arc(p.x, p.y, p.radius * (1 + progress * 1.25), 0, Math.PI * 2);
     ctx.stroke();
+    for (let i = 0; i < 6; i += 1) {
+      const angle = (i / 6) * Math.PI * 2 + progress * 0.8;
+      const radius = p.radius * (1.15 + progress * 0.8);
+      drawSparkle(
+        ctx,
+        p.x + Math.cos(angle) * radius,
+        p.y + Math.sin(angle) * radius * 0.55,
+        5 + state.catchPulse * 6,
+      );
+    }
     ctx.restore();
   }
 
@@ -100,6 +118,8 @@ export function renderGame(
   }
   ctx.restore();
 
+  if (state.speedUpTimer > 0) drawSpeedUpBanner(ctx, state.speedUpTimer);
+
   if (state.flash > 0) {
     ctx.save();
     ctx.fillStyle = `rgba(200, 16, 46, ${state.flash * 0.3})`;
@@ -107,6 +127,119 @@ export function renderGame(
     ctx.restore();
   }
 
+  ctx.restore();
+}
+
+/**
+ * Draw the original mascot as independently transformed layers. At rest these
+ * crops reassemble the source art exactly; while walking, the two legs swing
+ * around their own hips, the free arm counters, the head tilts gently, and the
+ * rigid plate arm never rotates, so the white plate stays level.
+ */
+function drawArticulatedMascot(
+  ctx: CanvasRenderingContext2D,
+  state: GameState,
+  images: GameImages,
+): void {
+  const pose = mascotPoseFor(state);
+  const w = state.playerW;
+  const h = state.playerH;
+  const damageFlicker = state.invuln > 0 && Math.floor(state.invuln * 14) % 2 === 0;
+
+  ctx.save();
+  ctx.translate(state.playerX, state.playerY);
+  if (state.facing === 'left') ctx.scale(-1, 1);
+  ctx.translate(-w / 2 + pose.bodyX, pose.bodyY);
+  ctx.globalAlpha = damageFlicker ? 0.42 : 1;
+
+  drawLayer(ctx, images.layers['leg-back'], 'leg-back', w, h, pose.legBackAngle);
+  drawLayer(ctx, images.layers['leg-front'], 'leg-front', w, h, pose.legFrontAngle);
+  drawLayer(ctx, images.layers.torso, 'torso', w, h, 0);
+  drawLayer(ctx, images.layers['arm-left'], 'arm-left', w, h, pose.armLeftAngle);
+  // No angle is passed here: the original plate and its arm remain level.
+  drawLayer(ctx, images.layers['plate-arm'], 'plate-arm', w, h, 0);
+  drawExpressionHead(ctx, images, state.expression, w, h, pose.headAngle, pose.headY);
+
+  ctx.restore();
+}
+
+function drawLayer(
+  ctx: CanvasRenderingContext2D,
+  image: CanvasImageSource,
+  name: MascotLayerName,
+  w: number,
+  h: number,
+  angle: number,
+  extraY = 0,
+): void {
+  const rect = MASCOT_LAYER_RECTS[name];
+  const x = rect[0] * w;
+  const y = rect[1] * h + extraY;
+  const width = (rect[2] - rect[0]) * w;
+  const height = (rect[3] - rect[1]) * h;
+  if (!angle) {
+    ctx.drawImage(image, x, y, width, height);
+    return;
+  }
+  const pivots: Partial<Record<MascotLayerName, readonly [number, number]>> = MASCOT_PIVOTS;
+  const pivot = pivots[name];
+  if (!pivot) {
+    ctx.drawImage(image, x, y, width, height);
+    return;
+  }
+  const px = pivot[0] * w;
+  const py = pivot[1] * h + extraY;
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(angle);
+  ctx.translate(-px, -py);
+  ctx.drawImage(image, x, y, width, height);
+  ctx.restore();
+}
+
+function drawExpressionHead(
+  ctx: CanvasRenderingContext2D,
+  images: GameImages,
+  expression: MascotExpression,
+  w: number,
+  h: number,
+  angle: number,
+  extraY: number,
+): void {
+  const image = images.expressions[expression] ?? images.expressions.normal;
+  drawLayer(ctx, image, 'head', w, h, angle, extraY);
+}
+
+function drawSparkle(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number): void {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = COLORS.white;
+  ctx.beginPath();
+  ctx.moveTo(0, -radius);
+  ctx.quadraticCurveTo(radius * 0.18, -radius * 0.18, radius, 0);
+  ctx.quadraticCurveTo(radius * 0.18, radius * 0.18, 0, radius);
+  ctx.quadraticCurveTo(-radius * 0.18, radius * 0.18, -radius, 0);
+  ctx.quadraticCurveTo(-radius * 0.18, -radius * 0.18, 0, -radius);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawSpeedUpBanner(ctx: CanvasRenderingContext2D, timer: number): void {
+  const progress = 1 - Math.max(0, Math.min(1, timer / SPEED_UP_SECONDS));
+  const pop = Math.sin(Math.min(1, progress * 2.2) * Math.PI);
+  const alpha = Math.min(1, timer * 2.6, progress * 10);
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, alpha);
+  ctx.translate(LOGICAL_W / 2, 196);
+  ctx.scale(0.9 + pop * 0.18, 0.9 + pop * 0.18);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '900 56px "Trebuchet MS", "Arial Rounded MT Bold", sans-serif';
+  ctx.lineWidth = 11;
+  ctx.strokeStyle = COLORS.brown;
+  ctx.strokeText('SPEED UP!', 0, 0);
+  ctx.fillStyle = COLORS.yellow;
+  ctx.fillText('SPEED UP!', 0, 0);
   ctx.restore();
 }
 

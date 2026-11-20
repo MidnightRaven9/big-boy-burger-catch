@@ -8,14 +8,27 @@ import { Sfx } from './game/audio';
 import { LOGICAL_H, LOGICAL_W, STARTING_LIVES } from './game/config';
 import { GameEngine } from './game/engine';
 import { readHighScore, readMuted, writeHighScore, writeMuted } from './game/storage';
-import type { Direction, GameState, UiSnapshot } from './game/types';
+import type {
+  Direction,
+  GameState,
+  MascotAnimation,
+  MascotExpression,
+  UiSnapshot,
+} from './game/types';
 
 interface DebugApi {
   engine: GameEngine;
   getState: () => GameState;
   getPlate: () => GameState['plate'];
+  getSnapshot: () => UiSnapshot;
+  getAnimation: () => ReturnType<GameEngine['debugAnimation']>;
   start: () => void;
   setPlayerX: (x: number) => void;
+  setPlayerVelocity: (vx: number) => void;
+  setDirection: (direction: Direction, active: boolean) => void;
+  setElapsed: (seconds: number) => void;
+  setPulse: (kind: 'catch' | 'hit', value: number) => void;
+  setAnimation: (anim: MascotAnimation, expression?: MascotExpression) => void;
   spawn: (kind: 'burger' | 'gravy', x: number, y?: number) => number;
 }
 
@@ -30,6 +43,7 @@ const INITIAL_UI: UiSnapshot = {
   score: 0,
   lives: STARTING_LIVES,
   highScore: 0,
+  level: 1,
   muted: false,
   catches: 0,
 };
@@ -87,8 +101,15 @@ export default function App() {
             engine,
             getState: () => engine.state,
             getPlate: () => engine.state.plate,
+            getSnapshot: () => engine.getSnapshot(),
+            getAnimation: () => engine.debugAnimation(),
             start: () => engine.start(),
             setPlayerX: (x: number) => engine.debugSetPlayerX(x),
+            setPlayerVelocity: (vx: number) => engine.debugSetPlayerVelocity(vx),
+            setDirection: (direction, active) => engine.setDirection(direction, active),
+            setElapsed: (seconds: number) => engine.debugSetElapsed(seconds),
+            setPulse: (kind, value) => engine.debugSetPulse(kind, value),
+            setAnimation: (anim, expression) => engine.debugSetAnimation(anim, expression),
             spawn: (kind, x, y) => engine.debugSpawn(kind, x, y),
           };
         }
@@ -272,6 +293,7 @@ export default function App() {
         score={ui.score}
         highScore={ui.highScore}
         lives={ui.lives}
+        level={ui.level}
         muted={ui.muted}
         onPause={togglePause}
         onResume={resume}
@@ -305,7 +327,7 @@ export default function App() {
               <h2>Artwork missing</h2>
               <p>The original game images could not be loaded:</p>
               <code>{assetError}</code>
-              <p>Place mascot.png, burger.png and gravy.png in <code>public/assets/</code> and reload.</p>
+              <p>Place the original PNGs and the <code>public/assets/mascot/</code> layer frames in place, then reload.</p>
             </div>
           </div>
         ) : null}

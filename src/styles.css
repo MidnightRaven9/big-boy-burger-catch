@@ -86,6 +86,19 @@ button {
   align-items: center;
 }
 
+.hud__stat--level {
+  align-items: center;
+  min-width: clamp(38px, 9vw, 58px);
+  padding: 1px 6px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.hud__value--level {
+  font-size: clamp(18px, 4.4vw, 28px);
+  color: var(--cream);
+}
+
 .hud__stat--lives {
   align-items: flex-end;
 }

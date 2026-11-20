@@ -1,7 +1,7 @@
 {
   "name": "big-boy-burger-catch",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "description": "Big Boy Burger Catch - a nostalgic Bismarck Big Boy arcade game",
   "scripts": {
@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify:assets": "node scripts/verify-assets.mjs"
+    "verify:assets": "node scripts/verify-assets.mjs",
+    "build:mascot-layers": "python3 scripts/build-mascot-layers.py"
   },
   "dependencies": {
     "react": "^18.3.1",
