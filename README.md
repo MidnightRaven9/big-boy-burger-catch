@@ -2,7 +2,7 @@
 
 A lightweight, nostalgic Bismarck Big Boy arcade game built with React, TypeScript, Vite and HTML5 Canvas. Catch original cheeseburger artwork on Big Boy's original white plate, dodge the original gravy splats, and beat your local high score.
 
-Version 1.1.0 adds articulated walk/direction animation, facial expressions, and a noticeable six-stage speed ramp while keeping the original artwork and gameplay intact.
+Version 1.2.0 keeps the articulated walk/direction animation, facial expressions and six-stage speed ramp from 1.1.0, and adds an adaptive full-width playfield plus a generated diner/rockabilly music loop that follows play, pause and mute.
 
 ## Download and play
 
@@ -11,8 +11,8 @@ Pick whichever way you want to play — all three versions are the same game usi
 | Version | Link | Notes |
 | --- | --- | --- |
 | Play in a browser | [Live game (GitHub Pages)](https://midnightraven9.github.io/big-boy-burger-catch/) | No install. Works on phone and desktop. |
-| Web ZIP (offline) | [big-boy-burger-catch-web.zip](https://github.com/MidnightRaven9/big-boy-burger-catch/releases/download/v1.1.0/big-boy-burger-catch-web.zip) | Unzip and open `index.html`, or serve the folder locally. Fully offline. |
-| Android APK | [BigBoyBurgerCatch-v1.1.0.apk](https://github.com/MidnightRaven9/big-boy-burger-catch/releases/download/v1.1.0/BigBoyBurgerCatch-v1.1.0.apk) | Sideload on Android 6.0+ (API 23). Fully offline. |
+| Web ZIP (offline) | [big-boy-burger-catch-web.zip](https://github.com/MidnightRaven9/big-boy-burger-catch/releases/download/v1.2.0/big-boy-burger-catch-web.zip) | Unzip and open `index.html`, or serve the folder locally. Fully offline. |
+| Android APK | [BigBoyBurgerCatch-v1.2.0.apk](https://github.com/MidnightRaven9/big-boy-burger-catch/releases/download/v1.2.0/BigBoyBurgerCatch-v1.2.0.apk) | Sideload on Android 6.0+ (API 23). Fully offline. |
 
 ### Web ZIP instructions
 
@@ -24,7 +24,7 @@ All code, the three original PNGs, and the six articulated mascot layers plus fi
 
 ### Android APK instructions
 
-1. Download `BigBoyBurgerCatch-v1.1.0.apk` onto your Android phone (API 23 / Android 6.0 or newer).
+1. Download `BigBoyBurgerCatch-v1.2.0.apk` onto your Android phone (API 23 / Android 6.0 or newer).
 2. Enable **Settings → Security → Install unknown apps** for the app you use to open the file (Files, Chrome, etc.).
 3. Open the APK and tap **Install**.
 4. Launch **Big Boy Burger Catch** from your app drawer. No internet connection is required to play.
@@ -57,7 +57,8 @@ Run `npm run verify:assets` to confirm the original PNGs and all generated layer
 - **Lives:** every game starts with **3 hearts**, shown in the top HUD. Zero lives ends the game.
 - **Screens:** start, main game, pause/resume, game over with final score, and Play Again.
 - **High score:** stored locally in `localStorage` (`bbbc.highScore.v1`).
-- **Sound:** generated with WebAudio, no audio files. Mute button in the HUD, preference stored locally.
+- **Sound:** generated with WebAudio, no audio files. Catch/hit/jukebox effects and a looping diner/rockabilly bass-and-brush band all follow the HUD mute button, and the preference is stored locally. Music starts after the first tap, plays only during a round, and stops on pause or game over.
+- **Screen fit:** the app shell is unchanged, but the playfield now scales with the device instead of leaving wide empty margins. It fills the available width on normal phones, crops only empty backdrop when space is tight, and never stretches the original art or hides Big Boy's plate. Short landscape screens move the controls beside the game.
 - **Difficulty:** six tiers with a HUD level indicator, exact fall-speed/spawn-interval table below, a brief `SPEED UP!` banner at each new level, and a hard cap at level 6.
 - **Spawning:** one item per event, at most **3** falling items and **2** burgers, approximately **25%** gravy, with spacing that prevents overlapping spawns.
 
@@ -91,7 +92,7 @@ npm run build:apk       # offline build + Gradle assembleRelease APK
 
 `build:standalone` creates a self-contained folder that opens from `file://` and can be zipped as the offline web version. `build:apk` copies that build into the Android WebView app's assets and produces `android/app/build/outputs/apk/release/app-release.apk`. It needs the Android SDK (`ANDROID_HOME` or `android/local.properties` with `sdk.dir`) and Java 17+. Use `npm run build:apk:debug` for a debug variant.
 
-Add `?debug=1` to the URL to expose `window.__BBBC__` with helpers (`start`, `setPlayerX`, `setPlayerVelocity`, `setDirection`, `setElapsed`, `setPulse`, `setAnimation`, `getState`, `getSnapshot`, `getAnimation`, `getPlate`, `spawn`) for automated testing.
+Add `?debug=1` to the URL to expose `window.__BBBC__` with helpers (`start`, `setPlayerX`, `setPlayerVelocity`, `setDirection`, `setElapsed`, `setPulse`, `setAnimation`, `getState`, `getSnapshot`, `getAnimation`, `getPlate`, `spawn`, `getAudio`, `getLayout`) for automated testing.
 
 ## Deployment
 
@@ -168,9 +169,11 @@ Before publishing, the following were checked against a real headless Chromium r
 - Burger catch awards exactly 10 points, head/body burgers score nothing, three gravy collisions remove one life each and end the game, damage protection is 0.8s.
 - Game Over final score, empty hearts, sad expression, Play Again restart, pause/resume, mute, high score and mute persistence after reload.
 - No page scrolling and no console/page errors.
-- `npm test` (25 logic/animation/engine tests), `npm run verify:assets`, `npm run build`, and `npm run build:standalone` all pass.
-- All 52 browser checks pass against the built bundle **and** the offline standalone build opened from `file://`, then against the live GitHub Pages URL.
-- The release APK was verified with `aapt dump badging` (package `com.midnightraven9.burgercatch`, label `Big Boy Burger Catch`, minSdk 23, targetSdk 36, version 1.1.0, non-debuggable), `aapt list` (all original and layer PNGs bundled under `assets/public/`), and `apksigner verify` (release signature valid).
+- Adaptive layout verified at 390x844, 360x640, 430x932, 390x600 and 844x390: the game fills the stage width on portrait phones, keeps its 720:1280 proportions, keeps the banner and mascot visible, and the controls stay on screen.
+- Music is silent before the first gesture, starts on Play, stops on pause/game over and when muted, and resumes correctly.
+- `npm test` (29 logic/animation/engine/layout tests), `npm run verify:assets`, `npm run build`, and `npm run build:standalone` all pass.
+- All 52 gameplay browser checks and 34 layout/music browser checks pass against the built bundle, the offline standalone build opened from `file://`, and the live GitHub Pages URL.
+- The release APK was verified with `aapt dump badging` (package `com.midnightraven9.burgercatch`, label `Big Boy Burger Catch`, minSdk 23, targetSdk 36, version 1.2.0, non-debuggable), `aapt list` (all original and layer PNGs bundled under `assets/public/`), and `apksigner verify` (release signature valid).
 
 ## Project structure
 
@@ -180,18 +183,18 @@ big-boy-burger-catch/
 ├── public/assets/mascot/          # generated layers + expression heads
 ├── scripts/build-mascot-layers.py # regenerates layers from mascot.png
 ├── src/components/{Hud,Controls,Overlay}.tsx
-├── src/game/{animation,assets,audio,config,engine,logic,render,storage,types}.ts
+├── src/game/{animation,assets,audio,config,engine,layout,logic,render,storage,types}.ts
 ├── src/game/mascotLayers.generated.ts
 ├── src/App.tsx
 ├── src/main.tsx
 ├── src/styles.css
 ├── android/                       # offline WebView APK project
 │   └── app/
-│       ├── build.gradle           # release signing config, version 1.1.0
+│       ├── build.gradle           # release signing config, version 1.2.0
 │       ├── burgercatch-release.keystore
 │       └── src/main/{java,res,assets/public}
 ├── release/                       # downloadable artifacts
-│   ├── BigBoyBurgerCatch-v1.1.0.apk
+│   ├── BigBoyBurgerCatch-v1.2.0.apk
 │   └── big-boy-burger-catch-web.zip
 ├── scripts/{verify-assets,fix-standalone-html,sync-android-assets}.mjs
 ├── .github/workflows/deploy.yml

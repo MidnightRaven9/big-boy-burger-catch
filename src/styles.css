@@ -172,21 +172,31 @@ button {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   overflow: hidden;
   touch-action: none;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(255, 199, 44, 0.2), transparent 62%),
+    repeating-linear-gradient(
+      135deg,
+      rgba(200, 16, 46, 0.22) 0,
+      rgba(200, 16, 46, 0.22) 18px,
+      rgba(142, 11, 32, 0.24) 18px,
+      rgba(142, 11, 32, 0.24) 36px
+    );
 }
 
 .game-canvas {
+  position: absolute;
+  left: 0;
+  top: 0;
   display: block;
-  flex: 0 0 auto;
   background: var(--cream);
-  border-left: 4px solid var(--yellow);
-  border-right: 4px solid var(--yellow);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
+  box-shadow:
+    inset 4px 0 0 var(--yellow),
+    inset -4px 0 0 var(--yellow),
+    0 10px 30px rgba(0, 0, 0, 0.32);
   touch-action: none;
+  will-change: transform;
 }
 
 /* ---------------- Overlays ---------------- */
@@ -439,7 +449,7 @@ button {
   }
 }
 
-@media (max-height: 620px) {
+@media (max-height: 700px) {
   .hud {
     min-height: 58px;
     padding-block: 6px;
@@ -452,5 +462,88 @@ button {
   }
   .panel__rules {
     margin-bottom: 12px;
+  }
+}
+
+/* Short landscape phones: keep the portrait playfield tall by moving the
+   controls beside it instead of stacking them underneath. */
+@media (orientation: landscape) and (max-height: 560px) {
+  .app {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(150px, 24vw, 210px);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .hud {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    min-height: 50px;
+    padding: 4px clamp(10px, 2vw, 20px);
+    border-bottom-width: 3px;
+  }
+
+  .hud__label {
+    font-size: 9px;
+  }
+
+  .hud__value {
+    font-size: 20px;
+  }
+
+  .heart,
+  .hearts {
+    height: 22px;
+  }
+
+  .heart {
+    width: 22px;
+  }
+
+  .icon-button {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+
+  .stage {
+    grid-column: 1;
+    grid-row: 2;
+    min-width: 0;
+  }
+
+  .controls {
+    grid-column: 2;
+    grid-row: 2;
+    flex-direction: column;
+    justify-content: center;
+    padding: 8px;
+    border-top: 0;
+    border-left: 4px solid var(--red);
+  }
+
+  .control {
+    min-height: 58px;
+  }
+
+  .controls__hint {
+    display: none;
+  }
+
+  .panel {
+    max-width: min(92%, 420px);
+    padding: 12px 18px;
+  }
+
+  .panel__title {
+    margin-bottom: 8px;
+    font-size: clamp(28px, 6vh, 42px);
+  }
+
+  .panel__rules {
+    margin-bottom: 10px;
+  }
+
+  .big-button {
+    min-height: 46px;
   }
 }

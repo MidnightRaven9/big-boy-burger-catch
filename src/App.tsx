@@ -7,12 +7,14 @@ import { detectPlate, loadImages } from './game/assets';
 import { Sfx } from './game/audio';
 import { LOGICAL_H, LOGICAL_W, STARTING_LIVES } from './game/config';
 import { GameEngine } from './game/engine';
+import { computeStageLayout, type StageLayout } from './game/layout';
 import { readHighScore, readMuted, writeHighScore, writeMuted } from './game/storage';
 import type {
   Direction,
   GameState,
   MascotAnimation,
   MascotExpression,
+  Phase,
   UiSnapshot,
 } from './game/types';
 
@@ -30,6 +32,8 @@ interface DebugApi {
   setPulse: (kind: 'catch' | 'hit', value: number) => void;
   setAnimation: (anim: MascotAnimation, expression?: MascotExpression) => void;
   spawn: (kind: 'burger' | 'gravy', x: number, y?: number) => number;
+  getAudio: () => ReturnType<Sfx['getDebugState']>;
+  getLayout: () => StageLayout;
 }
 
 declare global {
@@ -52,13 +56,22 @@ export default function App() {
   const [ui, setUi] = useState<UiSnapshot>(INITIAL_UI);
   const [assetStatus, setAssetStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [assetError, setAssetError] = useState('');
-  const [scale, setScale] = useState(1);
+  const [layout, setLayout] = useState<StageLayout>(() => computeStageLayout(1, 1));
+  const layoutRef = useRef(layout);
 
   const stageRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const sfxRef = useRef<Sfx | null>(null);
   const heldKeyRef = useRef<{ left: boolean; right: boolean }>({ left: false, right: false });
+
+  /** The band plays only while a round is active and sound is on. */
+  const syncMusic = useCallback((phase: Phase, muted: boolean) => {
+    const sfx = sfxRef.current;
+    if (!sfx) return;
+    if (phase === 'playing' && !muted) sfx.startMusic();
+    else sfx.stopMusic();
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +95,7 @@ export default function App() {
             onChange: (snapshot) => {
               setUi(snapshot);
               if (snapshot.muted !== sfx.muted) sfx.setMuted(snapshot.muted);
+              syncMusic(snapshot.phase, snapshot.muted);
             },
             onCatch: () => sfx.catch(),
             onHit: () => sfx.hit(),
@@ -111,6 +125,8 @@ export default function App() {
             setPulse: (kind, value) => engine.debugSetPulse(kind, value),
             setAnimation: (anim, expression) => engine.debugSetAnimation(anim, expression),
             spawn: (kind, x, y) => engine.debugSpawn(kind, x, y),
+            getAudio: () => sfx.getDebugState(),
+            getLayout: () => layoutRef.current,
           };
         }
 
@@ -143,21 +159,28 @@ export default function App() {
       cancelled = true;
       cancelAnimationFrame(frame);
       engineRef.current = null;
+      sfxRef.current?.dispose();
+      sfxRef.current = null;
       delete window.__BBBC__;
     };
-  }, []);
+  }, [syncMusic]);
 
   useEffect(() => {
     const stage = stageRef.current;
-    if (!stage || typeof ResizeObserver === 'undefined') return;
+    if (!stage) return;
     const measure = () => {
-      const ratio = Math.min(stage.clientWidth / LOGICAL_W, stage.clientHeight / LOGICAL_H);
-      setScale(Math.max(0.1, ratio));
+      const next = computeStageLayout(stage.clientWidth, stage.clientHeight);
+      layoutRef.current = next;
+      setLayout(next);
     };
     measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(stage);
-    return () => observer.disconnect();
+    if (typeof ResizeObserver !== 'undefined') {
+      const observer = new ResizeObserver(measure);
+      observer.observe(stage);
+      return () => observer.disconnect();
+    }
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
   }, []);
 
   useEffect(() => {
@@ -166,9 +189,10 @@ export default function App() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = Math.round(LOGICAL_W * dpr);
     canvas.height = Math.round(LOGICAL_H * dpr);
-    canvas.style.width = `${LOGICAL_W * scale}px`;
-    canvas.style.height = `${LOGICAL_H * scale}px`;
-  }, [scale, assetStatus]);
+    canvas.style.width = `${layout.width}px`;
+    canvas.style.height = `${layout.height}px`;
+    canvas.style.transform = `translate(${layout.offsetX}px, ${layout.offsetY}px)`;
+  }, [layout, assetStatus]);
 
   const interact = useCallback(() => {
     sfxRef.current?.unlock();
